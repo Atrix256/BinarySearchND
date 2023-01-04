@@ -3,7 +3,8 @@
 #include <vector>
 #include <algorithm>
 
-#define DETERMINISTIC() false
+// helpful for debugging
+#define DETERMINISTIC() true // TODO: set this back to false!
 
 // Just binary search
 bool Search1D(const int* values, int startX, int endX, int key)
@@ -66,6 +67,57 @@ bool Search2D(const int* values, int width, int startX, int startY, int endX, in
 
 	return false;
 }
+
+// Divide and conquer
+bool Search3D(const int* values, int width, int height, int startX, int startY, int startZ, int endX, int endY, int endZ, int key)
+{
+	// If our search area has zero volume, bail out
+	if (startX == endX || startY == endY || startZ == endZ)
+		return false;
+
+	int elementIndexX = (startX + endX) / 2;
+	int elementIndexY = (startY + endY) / 2;
+	int elementIndexZ = (startZ + endZ) / 2;
+	int elementIndex = elementIndexZ * width * height + elementIndexY * width + elementIndexX;
+	int element = values[elementIndex];
+
+	if (element == key)
+		return true;
+
+	// if the element we looked at is less than the key, the key is not <= this location on x and y. remove that <= block
+	if (element < key)
+	{
+		// search the back half
+		if (Search3D(values, width, height, startX, startY, elementIndexZ+1, endX, endY, endZ, key))
+			return true;
+
+		// search the right half of the front half
+		if (Search3D(values, width, height, elementIndexX + 1, startY, startZ, endX, endY, elementIndexZ, key))
+			return true;
+
+		// search the lower half of the left half of the front half
+		if (Search3D(values, width, height, startX, elementIndexY + 1, startZ, elementIndexX, endY, elementIndexZ, key))
+			return true;
+	}
+	// else the element is greater than the key, so the key is not >= this location on x and y. remove that >= block.
+	else
+	{
+		// search the front half
+		if (Search3D(values, width, height, startX, startY, startZ, endX, endY, elementIndexZ, key))
+			return true;
+
+		// search the left half of the back half
+		if (Search3D(values, width, height, startX, startY, elementIndexZ + 1, elementIndexX, endY, endZ, key))
+			return true;
+
+		// search the upper half of the right half of the back half
+		if (Search3D(values, width, height, elementIndexX + 1, startY, elementIndexZ + 1, endX, elementIndexY, endZ, key))
+			return true;
+	}
+
+	return false;
+}
+
 
 std::mt19937 GetRNG()
 {
@@ -144,21 +196,95 @@ std::vector<int> Transpose(const std::vector<int>& source, int width, int height
 	return ret;
 }
 
-void SortRows(std::vector<int>& source, int width, int height)
+template <size_t AXIS>
+std::vector<int> Transpose(const std::vector<int>& source, int width, int height, int depth)
 {
+	std::vector<int> ret(source.size());
+
+	auto coordToIndex = [](int x, int y, int z, int sizeX, int sizeY, int sizeZ)
+	{
+		return z * sizeX * sizeY + y * sizeX + x;
+	};
+
+	for (int iz = 0; iz < depth; ++iz)
+	{
+		for (int iy = 0; iy < height; ++iy)
+		{
+			for (int ix = 0; ix < width; ++ix)
+			{
+				int srcIndex = coordToIndex(ix, iy, iz, width, height, depth);
+				int destIndex = 0;
+				switch (AXIS)
+				{
+					// swap x axis with x axis - NO-OP.
+					case 0: destIndex = coordToIndex(ix, iy, iz, width, height, depth); break;
+					// swap x axis with y axis
+					case 1: destIndex = coordToIndex(iy, ix, iz, height, width, depth); break;
+					// swap x axis with z axis
+					case 2: destIndex = coordToIndex(iz, iy, ix, depth, height, width); break;
+				}
+				ret[destIndex] = source[srcIndex];
+			}
+		}
+	}
+
+	return ret;
+}
+
+template <size_t AXIS>
+void SortAxis(std::vector<int>& source, int width, int height)
+{
+	if (AXIS == 1)
+	{
+		source = Transpose(source, width, height);
+		std::swap(width, height);
+	}
+
 	for (int iy = 0; iy < height; ++iy)
 	{
 		int* begin = &source[iy * width];
 		int* end = &begin[width];
 		std::sort(begin, end);
 	}
+
+	if (AXIS == 1)
+	{
+		source = Transpose(source, width, height);
+		std::swap(width, height);
+	}
 }
 
-void SortCols(std::vector<int>& source, int width, int height)
+template <size_t AXIS>
+void SortAxis(std::vector<int>& source, int width, int height, int depth)
 {
-	source = Transpose(source, width, height);
-	SortRows(source, height, width);
-	source = Transpose(source, height, width);
+	if (AXIS == 1)
+	{
+		source = Transpose<AXIS>(source, width, height, depth);
+		std::swap(width, height);
+	}
+	else if (AXIS == 2)
+	{
+		source = Transpose<AXIS>(source, width, height, depth);
+		std::swap(width, depth);
+	}
+
+	for (int iy = 0; iy < height * depth; ++iy)
+	{
+		int* begin = &source[iy * width];
+		int* end = &begin[width];
+		std::sort(begin, end);
+	}
+
+	if (AXIS == 1)
+	{
+		source = Transpose<AXIS>(source, width, height, depth);
+		std::swap(width, height);
+	}
+	else if (AXIS == 2)
+	{
+		source = Transpose<AXIS>(source, width, height, depth);
+		std::swap(width, depth);
+	}
 }
 
 void DoTests2D()
@@ -192,8 +318,8 @@ void DoTests2D()
 
 		// Sort the rows, then sort the columns
 		// At each location, the number above and left are <= in value.
-		SortRows(randomValues, sizeX, sizeY);
-		SortCols(randomValues, sizeX, sizeY);
+		SortAxis<0>(randomValues, sizeX, sizeY);
+		SortAxis<1>(randomValues, sizeX, sizeY);
 
 		// search with our algorithm
 		int searchValue = valueDist(rng);
@@ -220,23 +346,90 @@ void DoTests2D()
 	printf("\r100%%\n");
 }
 
+void DoTests3D()
+{
+	printf(__FUNCTION__ "()...\n");
+	std::mt19937 rng = GetRNG();
+
+	static const int c_numTests = 10000;
+	std::uniform_int_distribution<int> numValuesDist(5, 30);
+	std::uniform_int_distribution<int> valueDist(0, 2000);
+
+	std::vector<int> randomValues;
+
+	int lastPercent = -1;
+	for (int i = 0; i < c_numTests; ++i)
+	{
+		// print progress
+		int percent = int(100.0f * float(i) / float(c_numTests - 1));
+		if (lastPercent != percent)
+		{
+			lastPercent = percent;
+			printf("\r%i%%", percent);
+		}
+
+		// make a random sized 3d array of random values
+		int sizeX = numValuesDist(rng);
+		int sizeY = numValuesDist(rng);
+		int sizeZ = numValuesDist(rng);
+		randomValues.resize(sizeX * sizeY * sizeZ);
+		for (int& value : randomValues)
+			value = valueDist(rng);
+
+		// Sort each dimension
+		// At each location, the number above and left are <= in value.
+		SortAxis<0>(randomValues, sizeX, sizeY, sizeZ);
+		SortAxis<1>(randomValues, sizeX, sizeY, sizeZ);
+		SortAxis<2>(randomValues, sizeX, sizeY, sizeZ);
+
+		// search with our algorithm
+		int searchValue = valueDist(rng);
+		bool found = Search3D(randomValues.data(), sizeX, sizeY, 0, 0, 0, sizeX, sizeY, sizeZ, searchValue);
+
+		// brute force search to verify
+		bool foundBruteSearch = false;
+		for (int value : randomValues)
+		{
+			if (value == searchValue)
+			{
+				foundBruteSearch = true;
+				break;
+			}
+		}
+
+		// report an error if the searches don't agree
+		if (found != foundBruteSearch)
+		{
+			printf("\nERROR! brute force and divide and conquer disagree!!\n");
+			return;
+		}
+	}
+	printf("\r100%%\n");
+}
 
 int main(int argc, char** argv)
 {
-	DoTests1D();
-	DoTests2D();
+	// TODO: uncomment these
+	//DoTests1D();
+	//DoTests2D();
+	DoTests3D();
 	return 0;
 }
 
 /*
 TODO:
-* 3d as well!
-? should we make a graph of how many searches were done for different sizes? yep. how do we do 2d and 3d though?
+? should we make a graph of how many searches were done for different sizes? yep. how do we do 2d and 3d though? maybe max side length?
 
 NOTES:
+* it's just divide and conquer when going up to higher D
+* no specific usage case for this, was just thinking about optimal search in 2d and beyond and what sorting might mean there.
+ * was thinking about sampling originally but not applicable here. went off on a tangent.
 * coding recursively cause its easier and easier to understand.
  * for 1d, it could be a loop.
  * for 2d and higher, could have a stack of sections to search that you add to and pop from, and continue til it's empty.
- * 3D and higher leaving for you!
+* in general, each comparison removes a quadrant or octant etc. in N dimensions, it removes ~ (1/ 2^D) from consideration.
+ * so less useful in higher dimensions? any way to combat that?
+ * what is O() of this?
+* interpolation search or golden section search in ND? what would that entail?
 
 */
