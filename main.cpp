@@ -4,7 +4,7 @@
 #include <algorithm>
 
 // helpful for debugging
-#define DETERMINISTIC() true // TODO: set this back to false!
+#define DETERMINISTIC() false
 
 // Just binary search
 bool Search1D(const int* values, int startX, int endX, int key)
@@ -21,7 +21,7 @@ bool Search1D(const int* values, int startX, int endX, int key)
 
 	// if the element we looked at is less than the key, look at the right section
 	if (element < key)
-		return Search1D(values, startX + 1, endX, key);
+		return Search1D(values, elementIndex + 1, endX, key);
 	// else the element is greater than the key, so look at the left section
 	else
 		return Search1D(values, startX, elementIndex, key);
@@ -92,11 +92,11 @@ bool Search3D(const int* values, int width, int height, int startX, int startY, 
 			return true;
 
 		// search the right half of the front half
-		if (Search3D(values, width, height, elementIndexX + 1, startY, startZ, endX, endY, elementIndexZ, key))
+		if (Search3D(values, width, height, elementIndexX + 1, startY, startZ, endX, endY, elementIndexZ + 1, key))
 			return true;
 
 		// search the lower half of the left half of the front half
-		if (Search3D(values, width, height, startX, elementIndexY + 1, startZ, elementIndexX, endY, elementIndexZ, key))
+		if (Search3D(values, width, height, startX, elementIndexY + 1, startZ, elementIndexX + 1, endY, elementIndexZ + 1, key))
 			return true;
 	}
 	// else the element is greater than the key, so the key is not >= this location on x and y. remove that >= block.
@@ -107,11 +107,11 @@ bool Search3D(const int* values, int width, int height, int startX, int startY, 
 			return true;
 
 		// search the left half of the back half
-		if (Search3D(values, width, height, startX, startY, elementIndexZ + 1, elementIndexX, endY, endZ, key))
+		if (Search3D(values, width, height, startX, startY, elementIndexZ, elementIndexX, endY, endZ, key))
 			return true;
 
 		// search the upper half of the right half of the back half
-		if (Search3D(values, width, height, elementIndexX + 1, startY, elementIndexZ + 1, endX, elementIndexY, endZ, key))
+		if (Search3D(values, width, height, elementIndexX, startY, elementIndexZ, endX, elementIndexY, endZ, key))
 			return true;
 	}
 
@@ -327,8 +327,10 @@ void DoTests2D()
 
 		// brute force search to verify
 		bool foundBruteSearch = false;
+		int bruteForceIndex = -1;
 		for (int value : randomValues)
 		{
+			bruteForceIndex++;
 			if (value == searchValue)
 			{
 				foundBruteSearch = true;
@@ -339,7 +341,7 @@ void DoTests2D()
 		// report an error if the searches don't agree
 		if (found != foundBruteSearch)
 		{
-			printf("\nERROR! brute force and divide and conquer disagree!!\n");
+			printf("\nERROR! brute force and divide and conquer disagree on test %i!\n", i);
 			return;
 		}
 	}
@@ -372,6 +374,7 @@ void DoTests3D()
 		int sizeX = numValuesDist(rng);
 		int sizeY = numValuesDist(rng);
 		int sizeZ = numValuesDist(rng);
+
 		randomValues.resize(sizeX * sizeY * sizeZ);
 		for (int& value : randomValues)
 			value = valueDist(rng);
@@ -388,8 +391,10 @@ void DoTests3D()
 
 		// brute force search to verify
 		bool foundBruteSearch = false;
+		int bruteForceIndex = -1;
 		for (int value : randomValues)
 		{
+			bruteForceIndex++;
 			if (value == searchValue)
 			{
 				foundBruteSearch = true;
@@ -400,7 +405,7 @@ void DoTests3D()
 		// report an error if the searches don't agree
 		if (found != foundBruteSearch)
 		{
-			printf("\nERROR! brute force and divide and conquer disagree!!\n");
+			printf("\nERROR! brute force and divide and conquer disagree on test %i!\n", i);
 			return;
 		}
 	}
@@ -409,27 +414,8 @@ void DoTests3D()
 
 int main(int argc, char** argv)
 {
-	// TODO: uncomment these
-	//DoTests1D();
-	//DoTests2D();
+	DoTests1D();
+	DoTests2D();
 	DoTests3D();
 	return 0;
 }
-
-/*
-TODO:
-? should we make a graph of how many searches were done for different sizes? yep. how do we do 2d and 3d though? maybe max side length?
-
-NOTES:
-* it's just divide and conquer when going up to higher D
-* no specific usage case for this, was just thinking about optimal search in 2d and beyond and what sorting might mean there.
- * was thinking about sampling originally but not applicable here. went off on a tangent.
-* coding recursively cause its easier and easier to understand.
- * for 1d, it could be a loop.
- * for 2d and higher, could have a stack of sections to search that you add to and pop from, and continue til it's empty.
-* in general, each comparison removes a quadrant or octant etc. in N dimensions, it removes ~ (1/ 2^D) from consideration.
- * so less useful in higher dimensions? any way to combat that?
- * what is O() of this?
-* interpolation search or golden section search in ND? what would that entail?
-
-*/
