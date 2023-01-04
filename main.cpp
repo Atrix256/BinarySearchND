@@ -6,34 +6,36 @@
 #define DETERMINISTIC() false
 
 // Just binary search
-bool Search1D(const int* values, size_t count, int key)
+bool Search1D(const int* values, int startX, int endX, int key)
 {
-	if (count == 0)
+	// If our search area has zero size, bail out
+	if (startX == endX)
 		return false;
 
-	size_t elementIndex = count / 2;
+	int elementIndex = (startX + endX) / 2;
 	int element = values[elementIndex];
 
 	if (element == key)
 		return true;
 
+	// if the element we looked at is less than the key, look at the right section
 	if (element < key)
-		return Search1D(&values[elementIndex + 1], count - (elementIndex + 1), key);
+		return Search1D(values, startX + 1, endX, key);
+	// else the element is greater than the key, so look at the left section
 	else
-		return Search1D(values, elementIndex, key);
+		return Search1D(values, startX, elementIndex, key);
 }
 
 // Divide and conquer
-bool Search2D(const int* values, size_t width, size_t height, size_t startX, size_t startY, size_t endX, size_t endY, int key)
+bool Search2D(const int* values, int width, int startX, int startY, int endX, int endY, int key)
 {
-	// If our search area has zero volume, bail out
+	// If our search area has zero area, bail out
 	if (startX == endX || startY == endY)
 		return false;
 
-	size_t elementIndexX = (startX + endX) / 2;
-	size_t elementIndexY = (startY + endY) / 2;
-	size_t elementIndex = elementIndexY * width + elementIndexX;
-
+	int elementIndexX = (startX + endX) / 2;
+	int elementIndexY = (startY + endY) / 2;
+	int elementIndex = elementIndexY * width + elementIndexX;
 	int element = values[elementIndex];
 
 	if (element == key)
@@ -43,22 +45,22 @@ bool Search2D(const int* values, size_t width, size_t height, size_t startX, siz
 	if (element < key)
 	{
 		// the right side
-		if (Search2D(values, width, height, elementIndexX + 1,            startY,              endX, endY, key))
+		if (Search2D(values, width, elementIndexX + 1,            startY,              endX, endY, key))
 			return true;
 
 		// the bottom side
-		if (Search2D(values, width, height,            startX, elementIndexY + 1, elementIndexX + 1, endY, key))
+		if (Search2D(values, width,            startX, elementIndexY + 1, elementIndexX + 1, endY, key))
 			return true;
 	}
 	// else the element is greater than the key, so the key is not >= this location on x and y. remove that >= block.
 	else
 	{
 		// the left side
-		if (Search2D(values, width, height,        startX, startY, elementIndexX,          endY, key))
+		if (Search2D(values, width,        startX, startY, elementIndexX,          endY, key))
 			return true;
 
 		// the top side
-		if (Search2D(values, width, height, elementIndexX, startY,          endX, elementIndexY, key))
+		if (Search2D(values, width, elementIndexX, startY,          endX, elementIndexY, key))
 			return true;
 	}
 
@@ -107,7 +109,7 @@ void DoTests1D()
 
 		// search with our algorithm
 		int searchValue = valueDist(rng);
-		bool found = Search1D(randomValues.data(), randomValues.size(), searchValue);
+		bool found = Search1D(randomValues.data(), 0, (int)randomValues.size(), searchValue);
 
 		// brute force search to verify
 		bool foundBruteSearch = false;
@@ -131,20 +133,20 @@ void DoTests1D()
 	printf("\r100%%\n");
 }
 
-std::vector<int> Transpose(const std::vector<int>& source, size_t width, size_t height)
+std::vector<int> Transpose(const std::vector<int>& source, int width, int height)
 {
 	std::vector<int> ret(source.size());
 
-	for (size_t iy = 0; iy < height; ++iy)
-		for (size_t ix = 0; ix < width; ++ix)
+	for (int iy = 0; iy < height; ++iy)
+		for (int ix = 0; ix < width; ++ix)
 			ret[ix * height + iy] = source[iy * width + ix];
 
 	return ret;
 }
 
-void SortRows(std::vector<int>& source, size_t width, size_t height)
+void SortRows(std::vector<int>& source, int width, int height)
 {
-	for (size_t iy = 0; iy < height; ++iy)
+	for (int iy = 0; iy < height; ++iy)
 	{
 		int* begin = &source[iy * width];
 		int* end = &begin[width];
@@ -152,7 +154,7 @@ void SortRows(std::vector<int>& source, size_t width, size_t height)
 	}
 }
 
-void SortCols(std::vector<int>& source, size_t width, size_t height)
+void SortCols(std::vector<int>& source, int width, int height)
 {
 	source = Transpose(source, width, height);
 	SortRows(source, height, width);
@@ -182,8 +184,8 @@ void DoTests2D()
 		}
 
 		// make a random sized 2d array of random values
-		size_t sizeX = numValuesDist(rng);
-		size_t sizeY = numValuesDist(rng);
+		int sizeX = numValuesDist(rng);
+		int sizeY = numValuesDist(rng);
 		randomValues.resize(sizeX * sizeY);
 		for (int& value : randomValues)
 			value = valueDist(rng);
@@ -195,7 +197,7 @@ void DoTests2D()
 
 		// search with our algorithm
 		int searchValue = valueDist(rng);
-		bool found = Search2D(randomValues.data(), sizeX, sizeY, 0, 0, sizeX, sizeY, searchValue);
+		bool found = Search2D(randomValues.data(), sizeX, 0, 0, sizeX, sizeY, searchValue);
 
 		// brute force search to verify
 		bool foundBruteSearch = false;
@@ -228,9 +230,8 @@ int main(int argc, char** argv)
 
 /*
 TODO:
-* Do 2D at least.
-* 3d as well?
-? should we make a graph of how many searches were done for different sizes?
+* 3d as well!
+? should we make a graph of how many searches were done for different sizes? yep. how do we do 2d and 3d though?
 
 NOTES:
 * coding recursively cause its easier and easier to understand.
